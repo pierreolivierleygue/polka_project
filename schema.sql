@@ -12,7 +12,8 @@ CREATE TABLE stage(
     id INTEGER PRIMARY KEY,
     id_race INTEGER NOT NULL,
     stage_number INTEGER NOT NULL,
-    type TEXT CHECK (type IN ('Flat','Hilly','Mountain')),
+    type TEXT CHECK (type IN ('ITT','TTT','RR')),
+    profile TEXT CHECK (type IN ('p0','p1','p2','p3','p4','p5')),
     distance_km REAL,
     elevation_m REAL,
     winner INTEGER,
@@ -43,6 +44,7 @@ CREATE TABLE stage_result(
     id_stage INTEGER NOT NULL,
     gc_position INTEGER,
     kom_position INTEGER,
+    kom_points INTEGER,
     PRIMARY KEY (id_rider, id_stage),
     FOREIGN KEY (id_rider) REFERENCES rider(id),
     FOREIGN KEY (id_stage) REFERENCES stage(id)
