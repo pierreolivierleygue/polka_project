@@ -1,6 +1,6 @@
 CREATE TABLE race(
     id INTEGER PRIMARY KEY,
-    name TEXT CHECK (name IN ('Tour','Giro','Vuelta')),
+    name TEXT CHECK (name IN ('tour-de-france','giro-d-italia','vuelta-a-espana')),
     year INTEGER NOT NULL,
     gc_winner INTEGER,
     kom_winner INTEGER,
@@ -13,7 +13,7 @@ CREATE TABLE stage(
     id_race INTEGER NOT NULL,
     stage_number INTEGER NOT NULL,
     type TEXT CHECK (type IN ('ITT','TTT','RR')),
-    profile TEXT CHECK (type IN ('p0','p1','p2','p3','p4','p5')),
+    profile TEXT CHECK (profile IN ('p0','p1','p2','p3','p4','p5')),
     distance_km REAL,
     elevation_m REAL,
     winner INTEGER,
@@ -33,7 +33,7 @@ CREATE TABLE climb(
     id_stage INTEGER NOT NULL,
     category TEXT CHECK (category IN ('4','3','2','1','HC')),
     distance_remaining_km REAL,
-    distance_m REAL,
+    distance_km REAL,
     elevation_m REAL,
     percentage REAL,
     FOREIGN KEY (id_stage) REFERENCES stage(id)
