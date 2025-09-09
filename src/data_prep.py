@@ -1,36 +1,9 @@
-"""
-Predict if a Grand Tour's KOM winner will be a GC rider (1) or a breakaway rider (0),
-USING ONLY ROUTE-LEVEL FEATURES (no startlist / rider features).
-
-Schema provided (SQLite): race, stage, rider, climb, stage_result, climb_result.
-We avoid any leakage by only using info known before the race (route + climbs).
-
-Label creation uses final GC position of the KOM winner (for the SAME race) but is NOT
-used as a feature. This is acceptable because labels can use outcome data.
-
-What this script does:
-1) Connect to SQLite and read the relevant tables
-2) Build route-only features at the (race_id) level from stage/climb
-3) Create target label: 1 if KOM winner finished top-10 in GC (or equals gc_winner), else 0
-4) Train/evaluate CatBoost with time-based splits
-5) Print metrics and feature importance
-
-You can run this as-is after setting DB_PATH to your SQLite file.
-"""
-
-# --- CONFIG ---
-DB_PATH = "cycling.db"   # change me
-TOP_N_GC = 5            # threshold for GC rider label
-
-# --- IMPORTS ---
 import sqlite3
 import pandas as pd
-import numpy as np
 
-# --- CONNECT ---
-conn = sqlite3.connect(DB_PATH)
+conn = sqlite3.connect("data/grand_tours.db")
 
-# --- 1) BASE RACE TABLE ---
+
 races = pd.read_sql(
     """
     SELECT r.id AS race_id,
@@ -44,8 +17,7 @@ races = pd.read_sql(
     conn,
 )
 
-# --- 2) ROUTE-ONLY FEATURES ---
-# Stage-level aggregates per race
+
 stage_agg = pd.read_sql(
     """
     SELECT s.id_race AS race_id,
@@ -67,7 +39,6 @@ stage_agg = pd.read_sql(
     conn,
 )
 
-# Climb-level aggregates per race
 climb_agg = pd.read_sql(
     """
     WITH climbs AS (
@@ -97,7 +68,6 @@ climb_agg = pd.read_sql(
     conn,
 )
 
-# Final-climb category per stage, then stage counts by (final climb category)
 final_climb = pd.read_sql(
     """
     WITH climbs AS (
@@ -126,16 +96,11 @@ final_climb = pd.read_sql(
     conn,
 )
 
-# Merge feature blocks
 features = (
     races.merge(stage_agg, on="race_id", how="left")
           .merge(climb_agg, on="race_id", how="left")
           .merge(final_climb, on="race_id", how="left")
 )
-
-# Ratios / densities (handle div-by-zero safely)
-def safe_div(a, b):
-    return np.where((b is not None) & (b!=0), a / b, 0.0)
 
 features["climb_density_per_stage"] = features["n_climbs"].fillna(0) / features["n_stages"].clip(lower=1)
 features["hc_ratio"] = features["n_hc"].fillna(0) / features["n_climbs"].clip(lower=1)
@@ -149,10 +114,10 @@ final_gc = pd.read_sql(
     """
     SELECT sr.id_rider,
            s.id_race AS race_id,
-           MIN(sr.gc_position) AS final_gc_position
+           sr.gc_position AS final_gc_position
     FROM stage_result sr
     JOIN stage s ON s.id = sr.id_stage
-    WHERE sr.gc_position IS NOT NULL
+    WHERE sr.gc_position IS NOT NULL AND s.stage_number = 21
     GROUP BY sr.id_rider, s.id_race
     """,
     conn,
@@ -161,5 +126,6 @@ final_gc = pd.read_sql(
 features = features.merge(final_gc, left_on=["kom_winner_id","race_id"], right_on=["id_rider","race_id"], how="left")
 
 # Label rule: 1 if KOM winner finished top-N in GC OR kom_winner == gc_winner
+TOP_N_GC = 5          
 features["label_gc"] = 0
 features.loc[(features["final_gc_position"] <= TOP_N_GC) | (features["kom_winner_id"] == features["gc_winner_id"]), "label_gc"] = 1

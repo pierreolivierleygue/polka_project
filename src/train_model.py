@@ -19,7 +19,6 @@ train_mask = features["year"] < START_TEST_YEAR
 X_train, y_train = features.loc[train_mask, X_cols], features.loc[train_mask, "label_gc"]
 X_test,  y_test  = features.loc[~train_mask, X_cols], features.loc[~train_mask, "label_gc"]
 
-# Fill NaNs (CatBoost can handle missing, but explicit fill helps consistency)
 X_train = X_train.fillna(0)
 X_test  = X_test.fillna(0)
 

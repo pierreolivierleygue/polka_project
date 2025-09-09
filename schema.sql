@@ -33,9 +33,6 @@ CREATE TABLE climb(
     id_stage INTEGER NOT NULL,
     category TEXT CHECK (category IN ('4','3','2','1','HC')),
     distance_remaining_km REAL,
-    distance_km REAL,
-    elevation_m REAL,
-    percentage REAL,
     FOREIGN KEY (id_stage) REFERENCES stage(id)
 );
 
