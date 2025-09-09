@@ -1,14 +1,14 @@
-from procyclingstats import Race, RaceStartlist, Stage, RaceClimbs
+from procyclingstats import Race, RaceStartlist, Stage
 import sqlite3
 
-from utils import get_id_rider_by_name, normalize_name
+from utils import get_id_rider_by_name, normalize_name, clear_database
 
 
 def year_scraper(first_year, last_year):
     """ 
-    Function made in order to run all the data needed
-    2 parameters : first_year and last_year
-    No return, just run other functions in order to feed the db.
+    Function enabling retrieving all data between 2 given year, by starting the races_scraper function for each year in range 
+    The unique cursor ensure waiting a year to be completed before population the db, and avoid incomplete update caused by an interruption. 
+    No return.
     """
     for year in range(first_year, last_year + 1):
         try:
@@ -32,11 +32,11 @@ class RacesScraper:
     def races_scraper(year, cursor):
         """
         Function that, for every year given, collect all the datas for the 3 grand tours
-        The function start other functions about stage, rider and climb but feed the db with : 
+        The function launch other functions about stage, rider and climb and populate the db with : 
         name, year, gc_winner, kom_winner in the race table
-        name, id_race in the rider table (from the startlist)
-
-        1 parameter: the year
+        name, id_race in the rider table.
+        
+        No return.
 
         """
         gt_list = ['giro-d-italia','tour-de-france','vuelta-a-espana']
@@ -56,20 +56,21 @@ class RacesScraper:
                     RacesScraper.insert_rider(rider_name, id_race,cursor)
 
                 # populate the race table
-                race= Stage(f"race/{gt_name}/{year}/stage-21")
-                gc_list = race.gc()
-                kom_list = race.kom()
+                last_stage = Race(url_race).stages()[-1]
+                race_result= Stage(last_stage['stage_url'])
+                gc_list = race_result.gc()
+                kom_list = race_result.kom()
                 if gc_list and kom_list:
-                    name_gc_winner = race.gc()[0]['rider_name'] 
-                    name_kom_winner = race.kom()[0]['rider_name'] 
+                    name_gc_winner = gc_list[0]['rider_name'] 
+                    name_kom_winner = kom_list[0]['rider_name'] 
 
-                    gc_winner = get_id_rider_by_name(name_gc_winner, id_race)
-                    kom_winner = get_id_rider_by_name(name_kom_winner, id_race)
+                    gc_winner = get_id_rider_by_name(name_gc_winner, id_race, cursor)
+                    kom_winner = get_id_rider_by_name(name_kom_winner, id_race, cursor)
 
                     RacesScraper.insert_race_winners(id_race, gc_winner, kom_winner,cursor)
             except Exception as e:
                 print('Error race table'+e)
-            StagesScraper.stages_scraper(id_race, url_race, gt_name,year, cursor)
+            StagesScraper.stages_scraper(id_race, url_race, cursor)
 
     @staticmethod
     def insert_race(name, year, cursor):
@@ -110,8 +111,14 @@ class RacesScraper:
 
 class StagesScraper:
     @staticmethod
-    def stages_scraper(id_race, url_race, gt_name, year, cursor):
+    def stages_scraper(id_race, url_race, cursor):
         """
+        Function that, for every race given, collect all the data for every stage
+        The function launch the climbs_scraper function and populate the db with : 
+        id_race, stage_number, type, profile, distance, elevation, winner in the stage table ; 
+        id_rider, id_stage, gc_rank, kom_rank, kom_points in the stage_result table for each rider.
+        
+        No return.
         """
         race_obj = Race(url_race)
         url_list_stages = race_obj.stages('stage_url')
@@ -122,7 +129,7 @@ class StagesScraper:
                 distance = stage['distance']
                 elevation = stage['vertical_meters']
                 profile = stage['profile_icon']
-                winner = get_id_rider_by_name(stage['results'][0]['rider_name'], id_race)
+                winner = get_id_rider_by_name(stage['results'][0]['rider_name'], id_race, cursor)
                 stage_number = i
                 id_stage = StagesScraper.insert_stage(id_race, stage_number, type, profile, distance, elevation, winner, cursor)
                 
@@ -142,7 +149,7 @@ class StagesScraper:
                         kom_rank = None
                         kom_points = 0
 
-                    id_rider = get_id_rider_by_name(rider_name, id_race)
+                    id_rider = get_id_rider_by_name(rider_name, id_race, cursor)
                     StagesScraper.insert_stage_result(id_rider, id_stage, gc_rank, kom_rank, kom_points, cursor)
             except Exception as e: 
                 print(f'Error stage table{e}')
@@ -177,6 +184,12 @@ class ClimbsScraper:
     @staticmethod
     def climbs_scraper(id_stage, url_stage, id_race, stage_distance, cursor):
         """
+        Function that, for every stage given, collect all the data for every climb
+        The function populate the db with : 
+        id_stage, climb_category, climb_to_finish in the climb table ; 
+        id_rider, id_climb, position, kom_points_earned in the climb_result table for each rider ranked.
+        
+        No return.
         """
         stage_climbs  = Stage(url_stage['stage_url']).climbs()
         
@@ -192,7 +205,7 @@ class ClimbsScraper:
                 id_climb=ClimbsScraper.insert_climb(id_stage, climb_category, climb_to_finish, cursor)
 
                 for rider in climb_rank: 
-                    id_rider = get_id_rider_by_name(rider['rider_name'], id_race)
+                    id_rider = get_id_rider_by_name(rider['rider_name'], id_race, cursor)
                     position = rider['rank']
                     kom_points_earned = rider['points']
                     ClimbsScraper.insert_climb_result(id_rider, id_climb, position, kom_points_earned, cursor)
@@ -223,13 +236,4 @@ class ClimbsScraper:
         )
         print('Insert climb result:', id_rider, id_climb, position, kom_points_earned)
 
-def clear_database():
-    with sqlite3.connect("data/grand_tours.db") as conn:
-        cursor = conn.cursor()
-        tables = ["race", "rider", "stage", "stage_result", "climb", "climb_result"]
-        for table in tables:
-            cursor.execute(f"DELETE FROM {table}")
-        print("Database cleared.")
-
-clear_database()
-year_scraper(2005, 2005)
+year_scraper(2010, 2010)
