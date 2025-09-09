@@ -236,4 +236,4 @@ class ClimbsScraper:
         )
         print('Insert climb result:', id_rider, id_climb, position, kom_points_earned)
 
-year_scraper(2010, 2010)
+year_scraper(2005, 2025)
