@@ -6,7 +6,6 @@ def normalize_name(name):
     only_ascii = nfkd_form.encode('ASCII', 'ignore').decode('ASCII')
     return only_ascii.lower()
 
-
 def get_id_rider_by_name(rider_name, id_race, cursor):
     cursor.execute("SELECT id FROM rider WHERE LOWER(name) = LOWER(?) AND id_race = ?", (normalize_name(rider_name), id_race))
     result = cursor.fetchone()
@@ -23,3 +22,6 @@ def clear_database():
             cursor.execute(f"DELETE FROM {table}")
         print("Database cleared.")
 
+def data_climb_cleaner(features):
+    features = features[features["stages_with_climbs"] > 5]
+    return features
